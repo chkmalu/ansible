@@ -1,0 +1,104 @@
+---
+- name: downnload and install Nexus package
+  hosts: remoteserver
+  become: yes
+  gather_facts: false
+  vars_files:
+    - vars_installnexus
+  tasks:
+    - name: update package
+      become: true
+      ansible.builtin.apt:
+        update_cache: yes
+    - name: install javaruntime
+      ansible.builtin.apt: 
+        name: openjdk-8-jre-headless
+        state: present
+    - name: downnload package
+      ansible.builtin.get_url:
+        url: https://download.sonatype.com/nexus/3/nexus-3.49.0-02-unix.tar.gz
+        dest: "{{remote_dir}}"
+      register: file_dest
+    - name: unpack package
+      ansible.builtin.unarchive:
+        src: "{{file_dest.dest}}"
+        dest: "{{remote_dir}}"
+        remote_src: yes
+    - name: find nexus folder
+      ansible.builtin.find:
+        paths: "{{remote_dir}}"
+        file_type: directory
+        use_regex: yes
+        patterns: ['nexus*']
+      register: NexusFolder_path
+    - name: find sonatype folder
+      ansible.builtin.find:
+        paths: "{{remote_dir}}"
+        file_type: directory
+        use_regex: yes
+        patterns: ['sonatype*']
+      register: SonatypeFolder_path
+
+- name: add Nexus user and group
+  hosts: remoteserver
+  become: yes
+  gather_facts: false
+  tasks:
+    - name: add Nexus group
+      ansible.builtin.group:
+        name: nexus
+        state: present
+    - name: create user and add to group
+      ansible.builtin.user:
+        name: nexus
+        group: nexus
+        shell: /bin/bash
+    - name: Change nexus ownership, group and permissions
+      ansible.builtin.file:
+        path: "{{ NexusFolder_path.files[0].path }}"
+        owner: nexus
+        group: nexus
+        recurse: yes
+    - name: Change sonatype ownership, group and permissions
+      ansible.builtin.file:
+        path: "{{ SonatypeFolder_path.files[0].path }}"
+        owner: nexus
+        group: nexus
+        recurse: yes
+
+- name: configure nexus run as user file
+  hosts: remoteserver
+  become: True
+  become_user: nexus
+  gather_facts: false
+  tasks:
+    - name: set nexus user to run task
+      ansible.builtin.lineinfile:
+        path: "{{ NexusFolder_path.files[0].path }}/bin/nexus.rc"
+        regexp: '^#run_as_user=""'
+        line: run_as_user="nexus"
+    - name: starting nexus
+      ansible.builtin.command: "{{ NexusFolder_path.files[0].path }}/bin/nexus run"
+      args:
+        chdir: package/
+      async: 1000
+      poll: 0
+      register: log_msg
+    - debug: msg={{log_msg}}
+
+
+# - name: check nexus server status
+#   hosts: remoteserver
+#   gather_facts: false
+#   tasks:
+#     - name: server status
+#       ansible.builtin.shell: ps aux | grep nexus
+#       register: status
+#     - debug: msg={{status}}
+#     - name: Wait one minute
+#       ansible.builtin.pause:
+#         minutes: 1
+#     - name: Check with netstat
+#       ansible.builtin.shell: netstat -plnt
+#       register: app_status
+#     - debug: msg={{ app_status.stdout_lines }}

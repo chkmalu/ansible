@@ -1,0 +1,44 @@
+---
+- name: deploy nodejs and npm
+  hosts: webserver
+  gather_facts: false
+  tasks:
+  - name: update package man ager
+    become: yes
+    ansible.builtin.apt:
+      update_cache: yes
+  - name: install nodejs
+    ansible.builtin.apt:
+      pkg:
+      - nodejs
+      - npm
+
+
+- name: Deploy to remote server
+  hosts: webserver
+  gather_facts: false
+  vars_files:
+    - vars_deploynodejs
+  tasks:
+# unarchive can unpack from local host to remote, so no need of copying the file and unpacking seperately N.B, remove remote_src: yes
+  - name: unpack package
+    ansible.builtin.unarchive:
+      src: "{{file_path}}"
+      dest: "{{remote_home_dir}}"
+      # remote_src: yes
+  - name: install dependencies
+    community.general.npm:
+      path: "{{remote_home_dir}}/package/"
+  - name: start node server
+    become: yes
+    ansible.builtin.command: node server.js
+    # run in background
+    args:
+      chdir: package/
+    async: 1000
+    poll: 0
+
+  - name: verify app status
+    ansible.builtin.shell: ps aux | grep node
+    register: app_status
+  - ansible.builtin.debug: msg={{ app_status.stdout_lines }}

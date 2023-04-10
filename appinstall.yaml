@@ -1,0 +1,14 @@
+---
+- name: configuring nginx server
+  hosts: webserver
+  become: yes
+  tasks:
+  - name: installing nginx server
+    ansible.builtin.apt: 
+      name: nginx
+      state: absent
+  - name: start nginx server
+    ansible.builtin.service: 
+      name: nginx
+      enabled: no
+      state: stopped

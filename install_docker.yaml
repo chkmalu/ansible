@@ -4,7 +4,7 @@
   gather_facts: false
   become: yes
   tasks:
-    - name: Upate package manager and insttag_Name_dev_instance python3
+    - name: Upate package manager and install python3
       vars:
         ansible_python_interpreter: /usr/bin/python
       ansible.builtin.yum:
@@ -12,19 +12,19 @@
           - python3
         update_cache: yes
         state: present
-    - name: insttag_Name_dev_instance Docker
+    - name: install Docker
       vars:
         ansible_python_interpreter: /usr/bin/python
       ansible.builtin.yum:
         name:
           - docker
         state: present
-    - name: downnload and insttag_Name_dev_instance Docekr compose
+    - name: downnload and install Docekr compose
       ansible.builtin.get_url:
         url: "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-Linux-{{lookup('pipe','uname -m')}}"
         dest: /usr/local/bin/docker-compose
         mode: +x
-    - name: insttag_Name_dev_instance docker-python
+    - name: install docker-python and docker-compose python
       ansible.builtin.pip:
         name: 
         - docker
@@ -34,24 +34,16 @@
   hosts: tag_Name_dev_instance
   become: yes
   gather_facts: false
-  tasks:
-    - name: Make sure Docker service unit is running
-      ansible.builtin.systemd:
-        state: started
-        name: docker
+  roles:
+    - start_docker
 
 - name: Add user to Docker Group
   hosts: tag_Name_dev_instance
   become: yes
   gather_facts: false
-  tasks:
-    - name: Add User to Group
-      ansible.builtin.user:
-        user: ec2-user
-        group: docker
-    - name: Reset connection
-      ansible.builtin.meta: reset_connection
-
+  roles:
+    - add_UserGroup
+    
 - name: Setup and run Compose-file
   hosts: tag_Name_dev_instance
   become: yes
@@ -59,18 +51,5 @@
   gather_facts: false
   vars_files:
     - vars_dockercompose
-  tasks:
-    - name: Copy docker compose-file
-      ansible.builtin.copy:
-        src: "{{ file_path_local }}"
-        dest: "{{ file_path_remote }}"
-    - name: docker login
-      community.docker.docker_login: 
-        registry_url: "{{ registry_url }}"
-        username: "{{ username }}"
-        password: "{{ password }}"
-        reauthorize: yes
-    - name: start containers
-      community.docker.docker_compose:
-        project_src: "{{ file_path_remote }}"
-        state: present #default state
+  roles:
+    - start_container

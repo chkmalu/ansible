@@ -1,0 +1,6 @@
+- name: Add User to Group
+  ansible.builtin.user:
+    user: "{{ username }}"
+    group: "{{ group }}"
+- name: Reset connection
+  ansible.builtin.meta: reset_connection
